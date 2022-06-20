@@ -10,6 +10,12 @@
 #include <QTime>
 #include <QSerialPort>
 #include <QSerialPortInfo>
+#include <QFileDialog>
+#include <QTextStream>
+#include <QDir>
+
+QImage GlobalImage;
+bool FirstImage = false;
 
 LiveViewer::LiveViewer(QWidget *parent)
     : QMainWindow(parent)
@@ -56,6 +62,7 @@ void LiveViewer::reset_ui(){
 void LiveViewer::updateImage(const QString &name){
     if(ui->imageComboBox->findText(name) == -1){
         ui->imageComboBox->addItem(name);
+        FirstImage = true;
     }
 }
 
@@ -63,11 +70,13 @@ void LiveViewer::updateImageData(const QString &name, const QImage& image){
     int idx = ui->imageComboBox->findText(name);
     if(idx == -1){
         ui->imageComboBox->addItem(name);
+        FirstImage = true;
         ui->imageComboBox->setCurrentText(name);
     }else{
         ui->imageComboBox->setCurrentIndex(idx);
     }
     ui->displayLabel->setPixmap(QPixmap::fromImage(image.scaled(ui->displayLabel->size(), Qt::KeepAspectRatio)));
+    GlobalImage = image;
     // update fps
     static int fps = 0;
     static int t1 = QTime::currentTime().second();
@@ -77,6 +86,46 @@ void LiveViewer::updateImageData(const QString &name, const QImage& image){
         ui->fpsLabel->setText(QString("fps=%1").arg(fps));
         fps = 0;
         t1 = t2;
+    }
+}
+
+void LiveViewer::saveImage(){
+    static bool FirstSave = true;
+    static int ImageCount = 0;
+    static QString Path;
+    QString strTime;
+    QDir Save_To_Dir;
+    static QString Target;
+    if(FirstSave == true)
+    {
+        QString Save_Path = QFileDialog::getExistingDirectory(this, "Open Directory",
+                                                              ".\\",
+                                                     QFileDialog::ShowDirsOnly
+                                                     | QFileDialog::DontResolveSymlinks);
+        if(Save_Path.isEmpty() == false)
+        {
+            Path = QDir::toNativeSeparators(Save_Path);
+
+            strTime = QTime::currentTime().toString("h_m_s");
+            Save_To_Dir.setPath(Path + "\\" + strTime);
+            Target = Save_To_Dir.absolutePath();
+
+            if(Save_To_Dir.exists() == false)
+                Save_To_Dir.mkpath(".");
+            FirstSave = false;
+            QTextStream(stdout) << "Path is " << Target << endl;
+        }
+        else
+            qDebug("Failed to Choose Dir");
+    }
+    else if(FirstImage == true)
+    {
+        QTextStream(stdout) << "Output Path is " << Target + "\\" + QString::number(ImageCount) + ".png" << endl;
+        GlobalImage.save(Target + "\\" + QString::number(ImageCount++) + ".png");
+    }
+    else
+    {
+         qDebug("image not ready!!");
     }
 }
 
@@ -163,6 +212,7 @@ void LiveViewer::on_menuSelectCOM_triggered(QAction* obj){
         QObject::connect(io, &SerialIO::buttonParsed, this, &LiveViewer::updateButton);
         QObject::connect(io, &QThread::finished, this, &LiveViewer::reset_ui);
         QObject::connect(ui->imageComboBox, &QComboBox::currentTextChanged, io, &SerialIO::sendImage);
+        QObject::connect(ui->imageSave, &QPushButton::released, this, &LiveViewer::saveImage);
         // start io thread
         io->start();
     }

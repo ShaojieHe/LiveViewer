@@ -24,6 +24,8 @@ public slots:
 
     void updateImageData(const QString &name, const QImage& image);
 
+    void saveImage();
+
     void updateParam(const QString &name, double min_value, double max_value, double step_value, double current_value);
 
     void updateOption(const QString &name, bool current_option);
